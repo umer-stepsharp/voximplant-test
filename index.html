@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Voximplant Test</title>
+  <script src="https://cdn.voximplant.com/voximplant.min.js"></script>
+</head>
+<body>
+  <h2>Voximplant Test</h2>
+  <button id="call" disabled>Call Bot</button>
+  <audio id="remoteAudio" autoplay playsinline controls></audio>
+
+  <script>
+    const vox = VoxImplant.getInstance();
+    const remoteAudio = document.getElementById("remoteAudio");
+
+    // Patch Voximplant SDK to stop calling createObjectURL
+    // It normally does: audio.src = URL.createObjectURL(stream)
+    // Replace it with: audio.srcObject = stream
+    const origAttachMediaStream = vox.attachMediaStream;
+    vox.attachMediaStream = function(element, stream) {
+      try {
+        element.srcObject = stream;
+      } catch (e) {
+        console.warn("Fallback to default attachMediaStream", e);
+        origAttachMediaStream.call(vox, element, stream);
+      }
+    };
+
+    async function init() {
+      try {
+        await vox.init();
+        console.log("SDK initialized");
+
+        await vox.connect();
+        console.log("Connecting...");
+
+        vox.addEventListener(VoxImplant.Events.ConnectionEstablished, async () => {
+          console.log("Connected to Voximplant Cloud");
+          try {
+            await vox.login("demo_user@voicebot-app.umersalim101.n2.voximplant.com", "Test@1234");
+            console.log("Login successful!");
+            document.getElementById("call").disabled = false;
+          } catch (e) {
+            console.error("Login failed:", e);
+          }
+        });
+
+        document.getElementById("call").onclick = () => {
+          const call = vox.call("voicebot_rule");
+
+          call.addEventListener(VoxImplant.CallEvents.StreamAdded, (e) => {
+            console.log("Remote stream added...");
+            remoteAudio.srcObject = e.stream;
+            remoteAudio.play().catch(err =>
+              console.warn("Autoplay blocked, user must click play:", err)
+            );
+          });
+        };
+      } catch (err) {
+        console.error("Init error:", err);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>
